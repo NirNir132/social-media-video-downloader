@@ -66,7 +66,9 @@ async def extract_media_url(url: str = Query(...), format: str = Query("best")):
                 best_format = None
                 for f in formats:
                     if f.get('vcodec') != 'none' and f.get('acodec') != 'none':  # Has both video and audio
-                        if best_format is None or f.get('height', 0) > best_format.get('height', 0):
+                        current_height = f.get('height', 0) or 0
+                        best_height = best_format.get('height', 0) or 0 if best_format else 0
+                        if best_format is None or current_height > best_height:
                             best_format = f
                 if not best_format:
                     # Fallback to any format with audio
@@ -159,7 +161,9 @@ async def get_gladia_url(url: str = Query(...), language: str = Query("auto")):
             best_format = None
             for f in formats:
                 if f.get('acodec') != 'none':  # Must have audio
-                    if best_format is None or f.get('height', 0) > best_format.get('height', 0):
+                    current_height = f.get('height', 0) or 0
+                    best_height = best_format.get('height', 0) or 0 if best_format else 0
+                    if best_format is None or current_height > best_height:
                         best_format = f
             
             if not best_format:
@@ -404,7 +408,9 @@ async def test_gladia_integration():
             best_format = None
             for f in formats:
                 if f.get('acodec') != 'none':  # Must have audio
-                    if best_format is None or f.get('height', 0) > best_format.get('height', 0):
+                    current_height = f.get('height', 0) or 0
+                    best_height = best_format.get('height', 0) or 0 if best_format else 0
+                    if best_format is None or current_height > best_height:
                         best_format = f
             
             if not best_format:
