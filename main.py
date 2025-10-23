@@ -127,8 +127,24 @@ async def get_gladia_url(url: str = Query(...), language: str = Query("auto")):
     Returns the exact format Gladia expects for audio_url parameter.
     """
     try:
+        # Debug: Log what we received
+        print(f"DEBUG: Received URL parameter: {url}")
+        print(f"DEBUG: Received language parameter: {language}")
+        
         # Ensure URL is properly decoded
+        original_url = url
         url = urllib.parse.unquote(url)
+        print(f"DEBUG: Decoded URL: {url}")
+        
+        # Check if the URL looks like a social media URL
+        if not any(platform in url.lower() for platform in ['youtube.com', 'youtu.be', 'facebook.com', 'instagram.com', 'tiktok.com', 'twitter.com', 'x.com']):
+            return {
+                "error": "Invalid URL format",
+                "received_url": original_url,
+                "decoded_url": url,
+                "message": "Please provide a valid social media URL (YouTube, Facebook, Instagram, TikTok, Twitter, etc.)",
+                "example": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            }
         
         # Extract metadata and get direct media URL
         with yt_dlp.YoutubeDL({'quiet': True, 'skip_download': True, 'encoding': 'utf-8'}) as ydl:
@@ -367,6 +383,73 @@ async def test_download():
             "error": str(e),
             "message": "yt-dlp test failed"
         }
+
+@app.get("/test-gladia")
+async def test_gladia_integration():
+    """Test the Gladia URL extraction with a known working video"""
+    try:
+        # Test with a simple YouTube video
+        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        
+        # Extract metadata and get direct media URL
+        with yt_dlp.YoutubeDL({'quiet': True, 'skip_download': True, 'encoding': 'utf-8'}) as ydl:
+            info = ydl.extract_info(test_url, download=False)
+            
+            # Get formats and find the best one with audio
+            formats = info.get('formats', [])
+            if not formats:
+                return {"error": "No video formats found"}
+            
+            # Find the best format with audio
+            best_format = None
+            for f in formats:
+                if f.get('acodec') != 'none':  # Must have audio
+                    if best_format is None or f.get('height', 0) > best_format.get('height', 0):
+                        best_format = f
+            
+            if not best_format:
+                return {"error": "No audio format found"}
+            
+            # Get the direct URL
+            direct_url = best_format.get('url')
+            if not direct_url:
+                return {"error": "No direct URL found"}
+            
+            return {
+                "status": "success",
+                "test_url": test_url,
+                "audio_url": direct_url,
+                "title": info.get("title", "No title"),
+                "duration_seconds": info.get("duration", 0),
+                "has_audio": True,
+                "gladia_request_format": {
+                    "audio_url": direct_url,
+                    "language": "en"
+                },
+                "message": "Gladia integration test successful"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Gladia integration test failed"
+        }
+
+@app.get("/echo")
+async def echo_params(url: str = Query(...), language: str = Query("auto")):
+    """Echo endpoint to see exactly what parameters are being received"""
+    return {
+        "received_parameters": {
+            "url": url,
+            "language": language
+        },
+        "decoded_url": urllib.parse.unquote(url),
+        "url_length": len(url),
+        "is_valid_url": url.startswith(('http://', 'https://')),
+        "contains_social_media": any(platform in url.lower() for platform in ['youtube.com', 'youtu.be', 'facebook.com', 'instagram.com', 'tiktok.com', 'twitter.com', 'x.com']),
+        "message": "This shows exactly what your n8n request is sending"
+    }
 
 if __name__ == "__main__":
     import uvicorn
